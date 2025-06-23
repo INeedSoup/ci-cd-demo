@@ -1,0 +1,53 @@
+pipeline {
+  agent any
+
+  environment {
+    APP_USER    = 'demoapp'
+    APP_GROUP   = 'demoapp'
+    DEPLOY_PATH = '/var/www/html'
+    // The credential ID you set in Jenkins
+    // (create it under “Credentials” → Secret text → ID: SUDO_PASS)
+    BECOME_PASS = credentials('SUDO_PASS')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Run Ansible Playbook') {
+      steps {
+        // Supply the sudo password via ansible_become_pass
+        sh '''
+          ansible-playbook \
+            -i ansible/inventory.ini \
+            ansible/playbook.yml \
+            --extra-vars "app_user=${APP_USER} app_group=${APP_GROUP} deploy_path=${DEPLOY_PATH} ansible_become_pass=${BECOME_PASS}"
+        '''
+      }
+    }
+
+    stage('Test Deployment') {
+      steps {
+        script {
+          def status = sh(
+            script: "curl -s -o /dev/null -w '%{http_code}' http://localhost",
+            returnStdout: true
+          ).trim()
+          echo "HTTP Status Code: ${status}"
+          if (status != '200') {
+            error "Deployment test failed with status ${status}"
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      echo "=== END OF PIPELINE ==="
+    }
+  }
+}

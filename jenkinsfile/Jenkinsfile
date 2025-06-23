@@ -1,53 +1,47 @@
 pipeline {
   agent any
 
+  //  Pass environment variables into Ansible
   environment {
     APP_USER    = 'demoapp'
     APP_GROUP   = 'demoapp'
     DEPLOY_PATH = '/var/www/html'
-    // The credential ID you set in Jenkins
-    // (create it under “Credentials” → Secret text → ID: SUDO_PASS)
-    BECOME_PASS = credentials('SUDO_PASS')
   }
 
   stages {
     stage('Checkout') {
       steps {
+        // Pull the latest from your Git repo
         checkout scm
       }
     }
 
-    stage('Run Ansible Playbook') {
+    stage('Deploy with Ansible') {
       steps {
-        // Supply the sudo password via ansible_become_pass
-        sh '''
-          ansible-playbook -b \
+        // Run your playbook, passing in the environment vars
+        sh """
+          ansible-playbook \
             -i ansible/inventory.ini \
             ansible/playbook.yml \
-            --extra-vars "app_user=${APP_USER} app_group=${APP_GROUP} deploy_path=${DEPLOY_PATH} ansible_become_pass=${BECOME_PASS}"
-        '''
+            -e \"app_user=${APP_USER}\" \
+            -e \"app_group=${APP_GROUP}\" \
+            -e \"deploy_path=${DEPLOY_PATH}\"
+        """
       }
     }
 
     stage('Test Deployment') {
       steps {
-        script {
-          def status = sh(
-            script: "curl -s -o /dev/null -w '%{http_code}' http://localhost",
-            returnStdout: true
-          ).trim()
-          echo "HTTP Status Code: ${status}"
-          if (status != '200') {
-            error "Deployment test failed with status ${status}"
-          }
-        }
+        // Validate the app is up; -f fails build on HTTP errors
+        sh 'curl -f http://localhost'
       }
     }
   }
 
   post {
     always {
-      echo "=== END OF PIPELINE ==="
+      // This ensures you see the full Ansible output & curl result
+      echo '=== Build Complete: check console log for details ==='
     }
   }
 }

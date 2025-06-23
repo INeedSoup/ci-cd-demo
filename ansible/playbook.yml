@@ -1,0 +1,54 @@
+---
+- name: "CI-CD Demo: install Nginx & deploy app"
+  hosts: local
+  become: true
+  vars:
+    app_user: demoapp
+    app_group: demoapp
+    deploy_path: /var/www/html
+  tasks:
+
+    - name: Ensure apt cache is up to date
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Create application group
+      ansible.builtin.group:
+        name: "{{ app_group }}"
+        state: present
+
+    - name: Create application user
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        group: "{{ app_group }}"
+        home: "/home/{{ app_user }}"
+        create_home: true
+        shell: /bin/bash
+        state: present
+
+    - name: Ensure deploy directory exists
+      ansible.builtin.file:
+        path: "{{ deploy_path }}"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0755'
+        state: directory
+
+    - name: Copy sample app files
+      ansible.builtin.template:
+        src: index.html.j2
+        dest: "{{ deploy_path }}/index.html"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0644'
+
+    - name: Restart Nginx to apply changes
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+      when: not ansible_check_mode

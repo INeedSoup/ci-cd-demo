@@ -21,7 +21,7 @@ pipeline {
       steps {
         // Supply the sudo password via ansible_become_pass
         sh '''
-          ansible-playbook \
+          ansible-playbook -b \
             -i ansible/inventory.ini \
             ansible/playbook.yml \
             --extra-vars "app_user=${APP_USER} app_group=${APP_GROUP} deploy_path=${DEPLOY_PATH} ansible_become_pass=${BECOME_PASS}"
